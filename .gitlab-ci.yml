@@ -1,0 +1,83 @@
+# Backend Pipeline Stages
+stages:
+  - Lint
+  - build
+  - unit-test
+  - coverage
+  - submit-backend-executable
+
+variables:
+  GIT_STRATEGY: fetch
+  GIT_CLEAN_FLAGS: -ffdx -e build/vcpkg_installed/
+  PATH_DEPLOY_BACKEND: "C:\\Program Files\\Backend Project Integration 4"
+
+# Jobs Configuration
+default:
+  tags:
+    - windows 
+  before_script:
+    - $env:PATH += ";$CI_PROJECT_DIR\build\vcpkg_installed\x64-windows\bin"
+    - $ErrorActionPreference = "Stop"
+
+# Cache Global
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - build/vcpkg_installed/
+
+# Stage : Code Lint 
+code-lint-job:
+  stage: Lint
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script: 
+    - $files = Get-ChildItem -Path "$CI_PROJECT_DIR\backend\src","$CI_PROJECT_DIR\backend\include" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Extension -match '\.(h|cpp)$' } | Select-Object -ExpandProperty FullName
+    - if ($files) { clang-format --style=file --dry-run -Werror $files } else { echo "Nenhum arquivo C++ encontrado para o Lint." }
+
+# Stage: Build
+build-job:
+  stage: build
+  script:
+    - cmake -B build -DVCPKG_TARGET_TRIPLET=x64-windows-static -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="C:/Users/joom/Desktop/vcpkg/scripts/buildsystems/vcpkg.cmake" -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreaded"
+    - cmake --build build --config Release
+  artifacts:
+    name: "build-binaries-$CI_COMMIT_REF_SLUG"
+    paths:
+      - build/backend/Release/
+      - build/backend/tests/Release/
+
+    expire_in: 14 days
+
+# Stage: Test
+unit-test-job:
+  stage: unit-test
+  dependencies:
+    - build-job
+  script:
+    - build\backend\tests\Release\tests.exe
+
+coverage-job:
+  stage: coverage
+  dependencies:
+    - build-job
+  script:
+    - cd .\backend\coverage
+    - python .\Coverage_Verifier.py
+
+# Stage: Deploy
+submit-backend-executable-job:
+  stage: submit-backend-executable
+  environment: production
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'main'
+  script:
+    - echo "Movendo arquivos clonados para pasta fixa global..."
+    - New-Item -Path "$env:PATH_DEPLOY_BACKEND" -ItemType Directory -Force
+    
+    - Copy-Item -Path "$CI_PROJECT_DIR\build\backend\Release\Projeto GRPC.exe" -Destination "$env:PATH_DEPLOY_BACKEND\Projeto GRPC.exe" -Force
+    - Copy-Item -Path "$CI_PROJECT_DIR\build\backend\Release\Projeto GRPC_lib.lib" -Destination "$env:PATH_DEPLOY_BACKEND\Projeto GRPC_lib.lib" -Force
+  needs:
+    - build-job
+    - unit-test-job
+    - coverage-job

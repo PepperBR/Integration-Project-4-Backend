@@ -1,0 +1,8 @@
+{
+  "dependencies": [
+    "grpc",
+    "protobuf",
+    "catch2",
+    "wxwidgets"
+  ]
+}
