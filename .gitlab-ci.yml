@@ -32,7 +32,7 @@ code-lint-job:
     - if: $CI_PIPELINE_SOURCE == "push"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   script: 
-    - $files = Get-ChildItem -Path "$CI_PROJECT_DIR\backend\src","$CI_PROJECT_DIR\backend\include" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Extension -match '\.(h|cpp)$' } | Select-Object -ExpandProperty FullName
+    - $files = Get-ChildItem -Path "$CI_PROJECT_DIR\src","$CI_PROJECT_DIR\include" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Extension -match '\.(h|cpp)$' } | Select-Object -ExpandProperty FullName
     - if ($files) { clang-format --style=file --dry-run -Werror $files } else { echo "Nenhum arquivo C++ encontrado para o Lint." }
 
 # Stage: Build
